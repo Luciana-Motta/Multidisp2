@@ -1,47 +1,38 @@
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from matplotlib import cm
 import numpy as np
-from sys import argv
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
-from numba import njit, prange
-import imageio
-import cv2
 import Poisson
 
 
-
-
-####MODELO######
-vw = 0.44671545
-phi = 0.30975736
-mi_w = 1
-mi_g = 0.0172
+#Variaveis fixas glabais 
+vw = 0.024 #velocidade de Darcy para injeção em meio poroso
+phi = 0.32142857142 #porosidade
+mi_w = 1 #viscosidade da água 20 graus 
+mi_g = 0.018 #viscosidade do ar 20 graus (ar)
 MRF = 1.0
 
-def PermEff(S):
-        lamb = 5.0 #mobilidade total*
-        krg = 1.0 #permeabilidade efetiva (gás)
-        krw = 0.75 #permeabilidade efetiva (água)
-        Swc = 0.99 #Saturação da água*
-        Sgr = 0.000 #Saturação do gás*
+def PermEff(S,P):
+        lamb = P[0] #mobilidade total*
+        krg = P[1] #permeabilidade efetiva (gás)
+        krw = P[2] #permeabilidade efetiva (água)
+        Swc = P[3]#Saturação da água*
+        Sgr = P[4] #Saturação do gás*
+
         Swe = (S-Swc)/(1-S-Sgr)  #equação 7
-        #print(Swe)
         k_w = krw*Swe**lamb #equação 8
-        k_g = krg*(1-Swe)**(3+(2/5.0)) #equação 9
+        k_g = krg*(1-Swe)**(3+(2/lamb)) #equação 9
         #if(S!=0):
             #print(S,k_w,k_g)
         return k_w,k_g
 
 
-def f(Sw):
-   krw1,krg1=PermEff(Sw)
+def f(Sw,P):
+   krw1,krg1=PermEff(Sw, P)
    lw=  (krw1 * 0.2 / mi_w)
-   lg=       ((krg1 * 0.00114667) / (mi_g * MRF))
+   lg=((krg1 * 0.00114667) / (mi_g * MRF))
    lt=lw+lg
    #print(lw)
    #return Sw
@@ -52,10 +43,7 @@ def init(L,dl):
     r= np.zeros((nl,nl))
     return r
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-def Solve2d(L: float, dl: float, t: float, dt: float, Sw0: float, times: list) -> list:
+def Solve2d(fw : float, L: float, dl: float, t: float, dt: float, Sw0: float, times: list, P: list) -> list:
     nt, nl = int(t/dt), int(L/dl)
 
     rw = (vw*dt)/(dl*phi)
@@ -67,9 +55,9 @@ def Solve2d(L: float, dl: float, t: float, dt: float, Sw0: float, times: list) -
 
     Sw_list = []
 
-    Sw[0, nl-2:nl, 0] = 0.99
+    Sw[0, nl-2:nl, 0] = fw
     for k in range(1, nt+1):
-        print("done ",k/nt * 100)
+        print("done ",round(k/nt * 100, 1))
 
         if k*dt in times:
             Sw_list.append(np.copy(Sw[k-1]))
@@ -81,21 +69,22 @@ def Solve2d(L: float, dl: float, t: float, dt: float, Sw0: float, times: list) -
                 w = C*W[i, j]
 
                 if v <= 0:
-                    Fy = (1/dl)*(f(Sw[k-1, i, j])-f(Sw[k-1, i+1, j]))
+                    Fy = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i+1, j], P))
                 else:
-                    Fy = (1/dl)*(f(Sw[k-1, i, j])-f(Sw[k-1, i-1, j]))
+                    Fy = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i-1, j], P))
                 if w <= 0:
-                    Fx = (1/dl)*(f(Sw[k-1, i, j])-f(Sw[k-1, i, j+1]))
+                    Fx = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j+1], P))
                 else:
-                    Fx = (1/dl)*(f(Sw[k-1, i, j])-f(Sw[k-1, i, j-1]))
+                    Fx = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j-1], P))
 
                 Sw[k, i, j] = Sw[k-1, i, j] - dt*(np.abs(v)*Fy + np.abs(w)*Fx)
                 if Sw[k, i, j] > 1:
                     return Sw_list
 
-        Sw[k, nl-2:nl, 0] = 0.99
+        Sw[k, nl-2:nl, 0] = fw
 
     return Sw_list
+
 
 
 L = 1
@@ -103,9 +92,28 @@ dl = 0.01
 t = 10
 dt = 0.01
 Sw0 = 0
-times_of_interest = [1,2,3,4,5,6,7,8,9]  # Adjust this list with the specific times you want
+times_of_interest = [1,2,3]  # Adjust this list with the specific times you want
 
-solutions = Solve2d(L, dl, t, dt, Sw0, times_of_interest)
+#parametros a serem ajustados
+lamb = 5.0 #mobilidade total*
+krg = 1.0 #permeabilidade efetiva (gás)
+krw = 0.75 #permeabilidade efetiva (água)
+Swc = 0.99 #Saturação da água*
+Sgr = 0.000 #Saturação do gás*
+#-------------------------------
+P = [lamb, krg, krw, Swc, Sgr]
+
+#modelagem da água
+fw = 0.99
+solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
+
+#modelagem da espuma 
+#fw = 0.33333
+#solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
+
+#modelagem do ar
+#fw = 0.1
+#solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
 
 directory = 'agua'  # Replace with your subfolder path
 for idx, time in enumerate(times_of_interest):
@@ -134,5 +142,3 @@ for idx, time in enumerate(times_of_interest):
     plt.tight_layout()
     plt.show()
     plt.savefig(directory+"/ajuste_at_"+str(time)+".png")
-
-
