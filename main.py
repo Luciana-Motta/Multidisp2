@@ -1,7 +1,6 @@
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import numpy as np
-import poisson
 import modelo 
 import ajuste
 

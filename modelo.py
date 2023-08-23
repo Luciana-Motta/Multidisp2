@@ -4,7 +4,7 @@ import numpy as np
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import Poisson
+import poisson
 
 
 #Variaveis fixas glabais 
@@ -47,7 +47,7 @@ def Solve2d(fw : float, L: float, dl: float, t: float, dt: float, Sw0: float, ti
     nt, nl = int(t/dt), int(L/dl)
 
     rw = (vw*dt)/(dl*phi)
-    W, U = Poisson.poisson(dl, L)  # Assuming you have Poisson's solver
+    W, U = poisson.poisson(dl, L)  # Assuming you have Poisson's solver
     W, U = W/np.linalg.norm(W), U/np.linalg.norm(U)
 
     Sw = np.zeros((nt+1, nl, nl))
