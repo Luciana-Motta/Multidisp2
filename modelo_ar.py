@@ -1,10 +1,18 @@
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
+from sys import argv
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import poisson
+from PIL import Image
+import imageio
+import cv2
+import Poisson
+
+
 
 
 #Variaveis fixas glabais 
@@ -43,19 +51,19 @@ def init(L,dl):
     r= np.zeros((nl,nl))
     return r
 
-def Solve2d(fw : float, L: float, dl: float, t: float, dt: float, Sw0: float, times: list, P: list) -> list:
+def Solve2d(L: float, dl: float, t: float, dt: float, Sw0: float, times: list, P: list,Fw:float) -> list:
     nt, nl = int(t/dt), int(L/dl)
-
+    PRE=1
     rw = (vw*dt)/(dl*phi)
-    W, U = poisson.poisson(dl, L)  # Assuming you have Poisson's solver
-    W, U = W/np.linalg.norm(W), U/np.linalg.norm(U)
+    W, U = Poisson.poisson(dl, L,    1)  
+
 
     Sw = np.zeros((nt+1, nl, nl))
     Sw[0] = init(L, dl)
-
+    D=0.01
     Sw_list = []
-
-    Sw[0, nl-2:nl, 0] = fw
+    dx=dy=dl
+    Sw[0, nl-2:nl, 0] = Fw
     for k in range(1, nt+1):
         print("done ",round(k/nt * 100, 1))
 
@@ -64,56 +72,50 @@ def Solve2d(fw : float, L: float, dl: float, t: float, dt: float, Sw0: float, ti
 
         for i in range(1, nl-1):
             for j in range(1, nl-1):
-                C = 10
+                C = 15*1/(dl)#VAZAO/AREA * Q
                 v = C*U[i, j]
                 w = C*W[i, j]
 
                 if v <= 0:
-                    Fy = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i+1, j], P))
+                    Fy = (1)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i+1, j], P))
                 else:
-                    Fy = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i-1, j], P))
+                    Fy = (1)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i-1, j], P))
                 if w <= 0:
-                    Fx = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j+1], P))
+                    Fx = (1)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j+1], P))
                 else:
-                    Fx = (1/dl)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j-1], P))
-
-                Sw[k, i, j] = Sw[k-1, i, j] - dt*(np.abs(v)*Fy + np.abs(w)*Fx)
+                    Fx = (1)*(f(Sw[k-1, i, j], P)-f(Sw[k-1, i, j-1], P))
+                    
+                diffusion_term = D * (
+                    (Sw[k-1, i+1, j] - 2 * Sw[k-1, i, j] + Sw[k-1, i-1, j]) / dx**2 +
+                    (Sw[k-1, i, j+1] - 2 * Sw[k-1, i, j] + Sw[k-1, i, j-1]) / dy**2
+                )
+                Sw[k, i, j] = Sw[k-1, i, j] - dt*(  D+ np.abs(v)*Fy + np.abs(w)*Fx)
                 if Sw[k, i, j] > 1:
                     return Sw_list
 
-        Sw[k, nl-2:nl, 0] = fw
+        Sw[k, nl-2:nl, 0] = 0.99
 
     return Sw_list
 
 
+Area=0.
 
 L = 1
-dl = 0.01
-t = 10
+dl = 0.05 
+t = 7
 dt = 0.01
 Sw0 = 0
-times_of_interest = [1,2,3]  # Adjust this list with the specific times you want
+times_of_interest = [1,3,5,7]  # 
 
 #parametros a serem ajustados
-lamb = 5.0 #mobilidade total*
-krg = 1.0 #permeabilidade efetiva (gás)
-krw = 0.75 #permeabilidade efetiva (água)
+lamb = 3 #mobilidade total*
+krg = 0.8 #permeabilidade efetiva (gás)
+krw = 0.8#permeabilidade efetiva (água)
 Swc = 0.99 #Saturação da água*
 Sgr = 0.000 #Saturação do gás*
 #-------------------------------
 P = [lamb, krg, krw, Swc, Sgr]
-
-#modelagem da água
-fw = 0.99
-solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
-
-#modelagem da espuma 
-#fw = 0.33333
-#solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
-
-#modelagem do ar
-#fw = 0.1
-#solutions = Solve2d(fw, L, dl, t, dt, Sw0, times_of_interest, P)
+solutions = Solve2d(L, dl, t, dt, Sw0, times_of_interest, P)
 
 directory = 'agua'  # Replace with your subfolder path
 for idx, time in enumerate(times_of_interest):
@@ -133,7 +135,7 @@ for idx, time in enumerate(times_of_interest):
     plt.title('Calculated Sw at time ' + str(time))
 
     plt.subplot(1, 2, 2)
-    plt.imshow(np.rot90(ref_matrix), cmap='viridis', origin='lower', vmin=0, vmax=1)
+    plt.imshow(1-np.rot90(ref_matrix), cmap='viridis', origin='lower', vmin=0, vmax=1)
     plt.colorbar(label='Sw')
     plt.xlabel('X')
     plt.ylabel('Y')

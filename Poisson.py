@@ -1,18 +1,26 @@
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
+from sys import argv
+import os
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
+from numba import njit, prange
+import imageio
+import cv2
+import Poisson
 
 
-
-def poisson(dl, L):
+def poisson(dl, L,q=100,K=1):
     # Define the problem parameters
     Lx = L  # Length of the domain in x-direction
     Ly = L  # Length of the domain in y-direction
     dx = dy = dl
     Nx = Ny = int(L / dl)
-
+    PRE=q
     # Define the boundary conditions
     u_top = 0.0
     u_bottom = 0.0
@@ -36,11 +44,11 @@ def poisson(dl, L):
 
 
     # Source boundary condition
-    u[Nx - 2 : , 0:2] = -1
-    u[Nx - 2 : , 0:2] = -1
+    u[Nx - 2 : , 0:2] = -q
+    u[Nx - 2 : , 0:2] = -q
 
-    u[0: 2, -2:] = 1
-    u[0 : 2, -2:] = 1
+    u[0: 2, -2:] = q
+    u[0 : 2, -2:] = q
 
     # Solve the Poisson equation
     max_iter = 1000
@@ -62,22 +70,25 @@ def poisson(dl, L):
 
     # Calculate the gradients
     grad_y, grad_x= np.gradient(u)
-
+    grad_y, grad_x=K*grad_y/np.linalg.norm(grad_y),   K* grad_x/np.linalg.norm(grad_x)
+        
+    
     # Plot the solution and gradients
+    PRE=1
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
-    im1 = ax[0, 0].imshow(u, cmap='coolwarm', origin='lower', extent=[0, L, 0, L])
+    im1 = ax[0, 0].imshow(u, cmap='coolwarm', origin='lower', extent=[0, L, 0, L], vmin=-PRE, vmax=PRE)
     ax[0, 0].set_title('Scalar Field')
     ax[0, 0].set_xlabel('x')
     ax[0, 0].set_ylabel('y')
     plt.colorbar(im1, ax=ax[0, 0])
 
-    im2 = ax[0, 1].imshow(grad_x, cmap='coolwarm', origin='lower', extent=[0, L, 0, L])
+    im2 = ax[0, 1].imshow(grad_x, cmap='coolwarm', origin='lower', extent=[0, L, 0, L], vmin=-PRE, vmax=PRE)
     ax[0, 1].set_title('Gradient in X-direction')
     ax[0, 1].set_xlabel('x')
     ax[0, 1].set_ylabel('y')
     plt.colorbar(im2, ax=ax[0, 1])
 
-    im3 = ax[1, 0].imshow(grad_y, cmap='coolwarm', origin='lower', extent=[0, L, 0, L])
+    im3 = ax[1, 0].imshow(grad_y, cmap='coolwarm', origin='lower', extent=[0, L, 0, L], vmin=-PRE, vmax=PRE)
     ax[1, 0].set_title('Gradient in Y-direction')
     ax[1, 0].set_xlabel('x')
     ax[1, 0].set_ylabel('y')
@@ -90,7 +101,9 @@ def poisson(dl, L):
 
     plt.tight_layout()
     plt.show()
-
+    
     plt.quiver(X,Y,grad_x,grad_y)
+    plt.show()
     return grad_x, grad_y
 
+poisson(0.1,10)
